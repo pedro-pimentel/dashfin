@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Financeiro - Apresentação</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- SheetJS para ler planilhas -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- html2pdf para exportação -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+        .table-container { max-height: 50vh; overflow-y: auto; }
+        th { position: sticky; top: 0; background-color: #f9fafb; z-index: 10; }
+        
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #a8a8a8; }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden">
+
+    <header class="bg-white shadow-sm border-b border-gray-200 py-4 px-6 flex justify-between items-center z-20 shrink-0">
+        <div class="flex items-center gap-2">
+            <i data-lucide="pie-chart" class="text-blue-600 w-6 h-6"></i>
+            <h1 class="text-xl font-semibold text-gray-800">Fechamento Mensal (Saídas)</h1>
+        </div>
+        
+        <div class="flex items-center gap-4">
+            <!-- Botão de PDF (Escondido inicialmente) -->
+            <button id="btnPdf" class="hidden bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-md font-medium text-sm transition-colors flex items-center gap-2 shadow-sm">
+                <i data-lucide="file-down" class="w-4 h-4"></i>
+                Baixar PDF
+            </button>
+
+            <label for="fileUpload" class="cursor-pointer bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-medium text-sm transition-colors flex items-center gap-2 shadow-sm">
+                <i data-lucide="upload" class="w-4 h-4"></i>
+                Carregar Planilha
+            </label>
+            <input type="file" id="fileUpload" accept=".xlsx, .xls, .csv" class="hidden">
+        </div>
+    </header>
+
+    <main class="flex-grow flex flex-col overflow-hidden relative">
+        
+        <!-- Estado Inicial -->
+        <div id="emptyState" class="absolute inset-0 flex flex-col items-center justify-center text-gray-400 bg-gray-50 z-20">
+            <i data-lucide="presentation" class="w-20 h-20 mb-4 text-gray-300"></i>
+            <p class="text-xl font-medium text-gray-600">Apresentação de Resultados</p>
+            <p class="text-sm mt-2 text-gray-500">Carregue sua base financeira para gerar os slides.</p>
+        </div>
+
+        <!-- Container da Apresentação -->
+        <div id="dashboardContent" class="hidden relative w-full h-full bg-white">
+            
+            <!-- SLIDE 1: KPIs -->
+            <div class="slide-panel absolute inset-0 p-8 flex flex-col bg-white">
+                <span class="text-xs font-bold text-blue-600 tracking-wider uppercase mb-2 bg-blue-50 w-max px-3 py-1 rounded-full">Slide 1 de 4</span>
+                <h2 class="text-3xl font-bold text-gray-800 mb-2">Resumo Executivo do Período</h2>
+                <p class="text-gray-500 mb-8">Panorama geral das despesas consolidadas.</p>
+                
+                <div class="grid grid-cols-2 gap-8 mt-4">
+                    <div class="bg-gray-50 p-6 rounded-xl border border-gray-200">
+                        <p class="text-sm text-gray-500 font-medium mb-1">Total de Despesas (Saídas)</p>
+                        <h2 id="kpiTotal" class="text-4xl font-black text-red-600">R$ 0,00</h2>
+                    </div>
+                    <div class="bg-gray-50 p-6 rounded-xl border border-gray-200">
+                        <p class="text-sm text-gray-500 font-medium mb-1">Volume de Lançamentos</p>
+                        <h2 id="kpiCount" class="text-4xl font-black text-gray-800">0</h2>
+                    </div>
+                    <div class="bg-gray-50 p-6 rounded-xl border border-gray-200">
+                        <p class="text-sm text-gray-500 font-medium mb-1">Principal Categoria</p>
+                        <h2 id="kpiTopCat" class="text-2xl font-bold text-gray-800 truncate">-</h2>
+                    </div>
+                    <div class="bg-gray-50 p-6 rounded-xl border border-gray-200">
+                        <p class="text-sm text-gray-500 font-medium mb-1">Principal Fornecedor</p>
+                        <h2 id="kpiTopFor" class="text-2xl font-bold text-gray-800 truncate">-</h2>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SLIDE 2: Categorias -->
+            <div class="slide-panel hidden absolute inset-0 p-8 flex flex-col bg-white">
+                <span class="text-xs font-bold text-blue-600 tracking-wider uppercase mb-2 bg-blue-50 w-max px-3 py-1 rounded-full">Slide 2 de 4</span>
+                <h2 class="text-3xl font-bold text-gray-800 mb-8">Análise por Categoria (Top 6)</h2>
+                
+                <div class="flex-grow flex items-center justify-center gap-12">
+                    <div class="w-1/2 h-[400px] relative">
+                        <canvas id="chartCategory"></canvas>
+                    </div>
+                    <div class="w-1/2">
+                        <ul id="catList" class="space-y-4">
+                            <!-- JS Popula Lista de Categorias -->
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SLIDE 3: Fornecedores -->
+            <div class="slide-panel hidden absolute inset-0 p-8 flex flex-col bg-white">
+                <span class="text-xs font-bold text-blue-600 tracking-wider uppercase mb-2 bg-blue-50 w-max px-3 py-1 rounded-full">Slide 3 de 4</span>
+                <h2 class="text-3xl font-bold text-gray-800 mb-2">Maiores Fornecedores (Top 6)</h2>
+                <p class="text-gray-500 mb-8">Maiores ofensores do período analisado.</p>
+                
+                <div class="w-full h-[350px] relative mt-4">
+                    <canvas id="chartSupplier"></canvas>
+                </div>
+            </div>
+
+            <!-- SLIDE 4: Base de Dados e Filtros -->
+            <div class="slide-panel hidden absolute inset-0 p-8 flex flex-col bg-white">
+                <div class="flex justify-between items-center mb-6">
+                    <div>
+                        <span class="text-xs font-bold text-blue-600 tracking-wider uppercase mb-2 bg-blue-50 w-max px-3 py-1 rounded-full inline-block">Slide 4 de 4</span>
+                        <h2 class="text-2xl font-bold text-gray-800 flex items-center gap-2 mt-1">
+                            <i data-lucide="table-2" class="w-6 h-6 text-blue-600"></i> Base de Lançamentos
+                        </h2>
+                    </div>
+                    <div class="text-right">
+                        <span class="text-sm text-gray-500">Filtrado:</span>
+                        <p id="tabelaTotal" class="text-xl font-bold text-red-600">R$ 0,00</p>
+                    </div>
+                </div>
+
+                <!-- Filtros Rápidos -->
+                <div class="flex items-center gap-3 mb-4 flex-wrap">
+                    <span class="text-xs font-bold text-gray-400 uppercase">Filtros Rápidos:</span>
+                    <div id="quickFilters" class="flex flex-wrap gap-2"></div>
+                    <button id="clearFiltersBtn" class="hidden text-xs bg-red-50 text-red-600 hover:bg-red-100 px-3 py-1.5 rounded-full font-medium transition-colors">Limpar Filtro</button>
+                </div>
+                
+                <div class="table-container flex-grow border border-gray-200 rounded-lg shadow-sm">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead>
+                            <tr class="bg-gray-50">
+                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Data</th>
+                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Fornecedor</th>
+                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Categoria & Conta</th>
+                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Descrição</th>
+                                <th class="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Valor</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tableBody" class="bg-white divide-y divide-gray-100 text-sm">
+                            <!-- JS popula aqui -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+        </div>
+
+        <!-- Controles de Navegação Fixos no Rodapé -->
+        <div id="slideControls" class="hidden absolute bottom-6 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white px-6 py-3 rounded-full flex items-center gap-6 shadow-xl z-30 opacity-90 hover:opacity-100 transition-opacity">
+            <button id="btnPrev" class="hover:text-blue-400 transition-colors disabled:opacity-50"><i data-lucide="chevron-left"></i></button>
+            <span id="slideIndicator" class="font-medium text-sm tracking-widest">1 / 4</span>
+            <button id="btnNext" class="hover:text-blue-400 transition-colors disabled:opacity-50"><i data-lucide="chevron-right"></i></button>
+        </div>
+
+    </main>
+
+    <script>
+        lucide.createIcons();
+
+        // Elementos DOM
+        const fileUpload = document.getElementById('fileUpload');
+        const emptyState = document.getElementById('emptyState');
+        const dashboardContent = document.getElementById('dashboardContent');
+        const slideControls = document.getElementById('slideControls');
+        const slidePanels = document.querySelectorAll('.slide-panel');
+        const btnPrev = document.getElementById('btnPrev');
+        const btnNext = document.getElementById('btnNext');
+        const slideIndicator = document.getElementById('slideIndicator');
+        const tableBody = document.getElementById('tableBody');
+        const quickFiltersContainer = document.getElementById('quickFilters');
+        const clearFiltersBtn = document.getElementById('clearFiltersBtn');
+        const btnPdf = document.getElementById('btnPdf');
+
+        let currentData = [];
+        let filteredData = [];
+        let currentSlide = 0;
+        let chartCatInstance = null;
+        let chartSupInstance = null;
+
+        // --- NAVEGAÇÃO DE SLIDES ---
+        function updateSlides() {
+            slidePanels.forEach((panel, index) => {
+                if (index === currentSlide) {
+                    panel.classList.remove('hidden');
+                    // Reforço para garantir que animações do ChartJS renderizem no tamanho correto ao exibir
+                    setTimeout(() => window.dispatchEvent(new Event('resize')), 10);
+                } else {
+                    panel.classList.add('hidden');
+                }
+            });
+            slideIndicator.textContent = `${currentSlide + 1} / ${slidePanels.length}`;
+            btnPrev.disabled = currentSlide === 0;
+            btnNext.disabled = currentSlide === slidePanels.length - 1;
+        }
+
+        btnPrev.addEventListener('click', () => { if (currentSlide > 0) { currentSlide--; updateSlides(); }});
+        btnNext.addEventListener('click', () => { if (currentSlide < slidePanels.length - 1) { currentSlide++; updateSlides(); }});
+        
+        document.addEventListener('keydown', (e) => {
+            if(dashboardContent.classList.contains('hidden')) return;
+            if (e.key === 'ArrowRight' && currentSlide < slidePanels.length - 1) { currentSlide++; updateSlides(); }
+            if (e.key === 'ArrowLeft' && currentSlide > 0) { currentSlide--; updateSlides(); }
+        });
+
+        // --- PROCESSAMENTO DE DADOS ---
+        const getVal = (keys, row) => {
+            for(let k of keys) {
+                const foundKey = Object.keys(row).find(rk => rk.toLowerCase().includes(k.toLowerCase()));
+                if (foundKey && row[foundKey] !== undefined && row[foundKey] !== null && row[foundKey] !== '') return row[foundKey];
+            }
+            return null;
+        };
+
+        function parseAmount(rawValue) {
+            if (!rawValue) return 0;
+            if (typeof rawValue === 'number') return rawValue;
+            let strVal = String(rawValue).trim();
+            strVal = strVal.replace(/[R$\s]/g, '');
+            if (strVal.includes(',') && strVal.includes('.')) {
+                strVal = strVal.lastIndexOf(',') > strVal.lastIndexOf('.') 
+                    ? strVal.replace(/\./g, '').replace(',', '.') 
+                    : strVal.replace(/,/g, '');
+            } else if (strVal.includes(',')) {
+                strVal = strVal.replace(',', '.');
+            }
+            return parseFloat(strVal) || 0;
+        }
+
+        const getCategory = (row) => getVal(['Categoria', 'Centro'], row) || 'Diversos';
+        const getSupplier = (row) => getVal(['Fornecedor', 'Nome', 'Favorecido'], row) || 'Não Informado';
+        const getAccount = (row) => getVal(['Conta', 'Banco', 'Origem'], row) || '-';
+        const getAmount = (row) => Math.abs(parseAmount(getVal(['Valor', 'Quantia', 'Total', 'Amount'], row)));
+        const formatCurrency = (value) => value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+        function aggregateData(data, keyFunction) {
+            const result = {};
+            data.forEach(row => {
+                const key = keyFunction(row);
+                const val = getAmount(row);
+                if(val > 0) result[key] = (result[key] || 0) + val;
+            });
+            return Object.entries(result).sort((a, b) => b[1] - a[1]);
+        }
+
+        function generateColors(count) {
+            const base = ['#3b82f6', '#8b5cf6', '#ec4899', '#f97316', '#14b8a6', '#facc15', '#10b981', '#6366f1'];
+            return Array.from({length: count}, (_, i) => base[i % base.length]);
+        }
+
+        // --- RENDERIZAÇÃO DO DASHBOARD ---
+        function renderDashboard(data, updateFilters = false) {
+            filteredData = data;
+            let totalDespesas = 0;
+            
+            // 1. Tabela
+            tableBody.innerHTML = '';
+            if (data.length === 0) {
+                tableBody.innerHTML = `<tr><td colspan="5" class="px-6 py-8 text-center text-gray-500">Nenhum dado.</td></tr>`;
+            }
+
+            data.forEach(row => {
+                const tr = document.createElement('tr');
+                const pgto = getVal(['Pagamento', 'Data', 'Vencimento', 'Emissão'], row) || '-';
+                const forn = getSupplier(row);
+                const cat = getCategory(row);
+                const acc = getAccount(row);
+                const absValor = getAmount(row);
+                
+                let desc = getVal(['Descrição', 'Histórico', 'Detalhe'], row) || '-';
+                if (desc.length > 60) desc = desc.substring(0, 60) + '...';
+
+                totalDespesas += absValor;
+
+                tr.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-gray-600">${pgto}</td>
+                    <td class="px-6 py-4 font-bold text-gray-900">${forn}</td>
+                    <td class="px-6 py-4">
+                        <div class="flex flex-col gap-1">
+                            <span class="bg-purple-50 text-purple-700 px-2 py-0.5 rounded text-xs font-bold w-max">${cat}</span>
+                            <span class="text-gray-400 text-xs flex items-center gap-1"><i data-lucide="credit-card" class="w-3 h-3"></i> ${acc}</span>
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 text-gray-500 text-xs">${desc}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right font-black text-gray-800">${formatCurrency(absValor)}</td>
+                `;
+                tableBody.appendChild(tr);
+            });
+            
+            document.getElementById('tabelaTotal').textContent = formatCurrency(totalDespesas);
+
+            // Se for pesquisa, não redesenha os gráficos gerais e KPIs, apenas a tabela.
+            if (!updateFilters) {
+                lucide.createIcons();
+                return; 
+            }
+
+            // 2. KPIs
+            const catAgg = aggregateData(data, getCategory);
+            const forAgg = aggregateData(data, getSupplier);
+            
+            document.getElementById('kpiTotal').textContent = formatCurrency(totalDespesas);
+            document.getElementById('kpiCount').textContent = data.length;
+            document.getElementById('kpiTopCat').textContent = catAgg.length > 0 ? catAgg[0][0] : '-';
+            document.getElementById('kpiTopFor').textContent = forAgg.length > 0 ? forAgg[0][0] : '-';
+
+            // 3. Gráficos
+            const top6Cats = catAgg.slice(0, 6);
+            const top6Fors = forAgg.slice(0, 6);
+
+            if(chartCatInstance) chartCatInstance.destroy();
+            if(chartSupInstance) chartSupInstance.destroy();
+
+            // Slide 2: Gráfico Categoria
+            const ctxCat = document.getElementById('chartCategory').getContext('2d');
+            chartCatInstance = new Chart(ctxCat, {
+                type: 'doughnut',
+                data: {
+                    labels: top6Cats.map(x => x[0]),
+                    datasets: [{ data: top6Cats.map(x => x[1]), backgroundColor: generateColors(top6Cats.length), borderWidth: 2, borderColor: '#fff' }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, cutout: '65%', plugins: { legend: { display: false } } }
+            });
+
+            // Slide 2: Lista Categoria
+            const catList = document.getElementById('catList');
+            catList.innerHTML = '';
+            const colors = generateColors(top6Cats.length);
+            top6Cats.forEach((cat, idx) => {
+                const percent = ((cat[1] / totalDespesas) * 100).toFixed(1);
+                catList.innerHTML += `
+                    <li class="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100">
+                        <div class="flex items-center gap-3">
+                            <span class="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold" style="background-color: ${colors[idx]}">${idx+1}</span>
+                            <div>
+                                <p class="text-sm font-bold text-gray-800">${cat[0]}</p>
+                                <p class="text-xs text-gray-500">${percent}% do total</p>
+                            </div>
+                        </div>
+                        <span class="font-bold text-gray-800">${formatCurrency(cat[1])}</span>
+                    </li>
+                `;
+            });
+
+            // Slide 3: Gráfico Fornecedor
+            const ctxSup = document.getElementById('chartSupplier').getContext('2d');
+            chartSupInstance = new Chart(ctxSup, {
+                type: 'bar',
+                data: {
+                    labels: top6Fors.map(x => x[0].length > 20 ? x[0].substring(0,20)+'...' : x[0]),
+                    datasets: [{ data: top6Fors.map(x => x[1]), backgroundColor: '#3b82f6', borderRadius: 6 }]
+                },
+                options: { 
+                    responsive: true, maintainAspectRatio: false, 
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true, grid: { borderDash: [4, 4] } }, x: { grid: { display: false } } }
+                }
+            });
+
+            // 4. Filtros Rápidos (Botões)
+            quickFiltersContainer.innerHTML = '';
+            top6Cats.forEach(cat => {
+                const btn = document.createElement('button');
+                btn.className = "bg-white border border-gray-200 hover:border-blue-500 text-gray-600 px-3 py-1.5 rounded-md text-xs font-medium transition-colors shadow-sm";
+                btn.textContent = cat[0];
+                btn.onclick = () => {
+                    const filtered = currentData.filter(row => getCategory(row) === cat[0]);
+                    renderDashboard(filtered, false);
+                    clearFiltersBtn.classList.remove('hidden');
+                    // Pula para o slide da tabela
+                    currentSlide = 3; updateSlides();
+                };
+                quickFiltersContainer.appendChild(btn);
+            });
+
+            lucide.createIcons();
+        }
+
+        clearFiltersBtn.addEventListener('click', () => {
+            renderDashboard(currentData, false);
+            clearFiltersBtn.classList.add('hidden');
+        });
+
+        // --- CARREGAMENTO DO ARQUIVO ---
+        fileUpload.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const workbook = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+                const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+                const rawData = XLSX.utils.sheet_to_json(worksheet, { raw: false, dateNF: 'dd/mm/yyyy' });
+                
+                if (rawData && rawData.length > 0) {
+                    currentData = rawData;
+                    emptyState.style.display = 'none';
+                    dashboardContent.classList.remove('hidden');
+                    slideControls.classList.remove('hidden');
+                    btnPdf.classList.remove('hidden'); // Exibe botão do PDF
+                    
+                    currentSlide = 0;
+                    updateSlides();
+                    renderDashboard(currentData, true);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        });
+
+        // --- CORREÇÃO DO GERADOR DE PDF ---
+        btnPdf.addEventListener('click', async () => {
+            const originalHTML = btnPdf.innerHTML;
+            btnPdf.innerHTML = '<i data-lucide="loader" class="w-4 h-4 animate-spin"></i> Gerando...';
+            btnPdf.disabled = true;
+
+            // PREPARAÇÃO DO DOM PARA IMPRESSÃO (Remove empilhamento)
+            const wrapper = document.getElementById('dashboardContent');
+            const slides = document.querySelectorAll('.slide-panel');
+            const originalSlide = currentSlide;
+            
+            // Tira propriedades flex e de limite de tela do main/body
+            document.body.classList.remove('h-screen', 'overflow-hidden');
+            document.querySelector('main').classList.remove('overflow-hidden');
+            wrapper.classList.remove('absolute', 'inset-0');
+            
+            // Configura os slides para aparecerem um embaixo do outro como blocos normais da web
+            slides.forEach((slide, index) => {
+                slide.classList.remove('hidden', 'absolute', 'inset-0'); // <- O SEGREDO ESTÁ AQUI
+                slide.style.position = 'relative';
+                slide.style.display = 'block';
+                slide.style.height = 'auto'; // Deixa crescer conforme o conteúdo
+                slide.style.minHeight = '210mm'; // Garante espaço mínimo de uma folha A4
+                slide.style.pageBreakAfter = index < slides.length - 1 ? 'always' : 'auto';
+                slide.classList.add('pdf-page'); // Marcador pro html2pdf
+            });
+
+            // Expande a tabela para renderizar todas as linhas
+            const tbContainer = document.querySelector('.table-container');
+            tbContainer.style.maxHeight = 'none';
+            tbContainer.style.overflow = 'visible';
+            
+            // Esconde UI de navegação
+            slideControls.style.display = 'none';
+
+            // Aguarda o navegador aplicar o layout block
+            await new Promise(r => setTimeout(r, 500)); 
+
+            // GERAÇÃO DO PDF
+            const opt = {
+                margin:       [10, 10, 10, 10], // Margens
+                filename:     'Fechamento_Resultados.pdf',
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2, useCORS: true, logging: false },
+                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'landscape' },
+                pagebreak:    { mode: 'css', before: '.pdf-page' }
+            };
+
+            try {
+                await html2pdf().set(opt).from(wrapper).save();
+            } catch(e) {
+                console.error("Erro na exportação", e);
+            } finally {
+                // RESTAURAÇÃO DO DOM (Volta para modo Apresentação)
+                document.body.classList.add('h-screen', 'overflow-hidden');
+                document.querySelector('main').classList.add('overflow-hidden');
+                wrapper.classList.add('absolute', 'inset-0');
+                
+                slides.forEach((slide) => {
+                    slide.style.position = '';
+                    slide.style.display = '';
+                    slide.style.height = '';
+                    slide.style.minHeight = '';
+                    slide.style.pageBreakAfter = '';
+                    slide.classList.remove('pdf-page');
+                    slide.classList.add('absolute', 'inset-0');
+                });
+                
+                tbContainer.style.maxHeight = '50vh';
+                tbContainer.style.overflow = 'auto';
+                slideControls.style.display = 'flex';
+                
+                currentSlide = originalSlide;
+                updateSlides();
+                
+                btnPdf.innerHTML = originalHTML;
+                btnPdf.disabled = false;
+                lucide.createIcons();
+            }
+        });
+    </script>
+</body>
+</html>
