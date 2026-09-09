@@ -3,48 +3,35 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard Financeiro Interativo</title>
+    <title>Auditoria Financeira - Saipos</title>
     
-    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- SheetJS (Leitura de Excel/CSV) -->
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
-    
-    <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
-
-    <!-- Chart.js (Gráficos) -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
-    <!-- html2pdf.js (Exportação PDF) -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
     <style>
         body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
-        .table-container { max-height: 400px; overflow-y: auto; }
+        .table-container { max-height: 60vh; overflow-y: auto; }
         th { position: sticky; top: 0; background-color: #f9fafb; z-index: 10; }
         ::-webkit-scrollbar { width: 8px; height: 8px; }
         ::-webkit-scrollbar-track { background: #f1f1f1; }
         ::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #a8a8a8; }
     </style>
 </head>
 <body class="h-screen flex flex-col overflow-hidden">
 
-    <!-- CABEÇALHO SUPERIOR -->
     <header class="bg-white shadow-sm border-b border-gray-200 py-4 px-6 flex justify-between items-center z-20 shrink-0">
         <div class="flex items-center gap-2">
-            <i data-lucide="bar-chart-2" class="text-blue-600 w-6 h-6"></i>
-            <h1 class="text-xl font-bold text-gray-800">Painel Financeiro</h1>
+            <i data-lucide="shield-check" class="text-indigo-600 w-6 h-6"></i>
+            <h1 class="text-xl font-bold text-gray-800">Auditoria para Saipos</h1>
         </div>
         
         <div class="flex items-center gap-4">
-            <button id="btnPdf" class="hidden bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 px-4 py-2 rounded-md font-medium text-sm transition-colors flex items-center gap-2 shadow-sm">
-                <i data-lucide="file-pdf" class="w-4 h-4"></i>
-                Exportar PDF
+            <button id="btnCopyRobot" class="hidden bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-4 py-2 rounded-md font-bold text-sm transition-colors flex items-center gap-2 shadow-sm">
+                <i data-lucide="bot" class="w-4 h-4"></i>
+                Copiar para Robô
             </button>
-            <label for="fileUpload" class="cursor-pointer bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-medium text-sm transition-colors flex items-center gap-2 shadow-sm">
+            <label for="fileUpload" class="cursor-pointer bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-bold text-sm transition-colors flex items-center gap-2 shadow-sm">
                 <i data-lucide="upload" class="w-4 h-4"></i>
                 Carregar Base
             </label>
@@ -52,146 +39,101 @@
         </div>
     </header>
 
-    <!-- ÁREA PRINCIPAL -->
     <main class="flex-grow overflow-y-auto p-6 relative">
-        
-        <!-- ESTADO VAZIO -->
         <div id="emptyState" class="absolute inset-0 flex flex-col items-center justify-center text-gray-400 z-10">
-            <i data-lucide="layout-dashboard" class="w-20 h-20 mb-4 text-gray-300"></i>
-            <p class="text-xl font-medium text-gray-600">O Dashboard está vazio</p>
-            <p class="text-sm mt-2 text-gray-500">Suba sua planilha de lançamentos para ativar a interatividade e os gráficos.</p>
+            <i data-lucide="file-search" class="w-20 h-20 mb-4 text-gray-300"></i>
+            <p class="text-xl font-medium text-gray-600">Auditoria Pendente</p>
+            <p class="text-sm mt-2 text-gray-500">Suba a planilha para analisar inconsistências antes de lançar na Saipos.</p>
         </div>
 
-        <!-- CONTEÚDO DO DASHBOARD (A ser exportado) -->
-        <div id="dashboardContent" class="hidden flex-col gap-6 bg-[#f3f4f6]">
+        <div id="dashboardContent" class="hidden flex-col gap-6">
             
-            <!-- CONTROLES INTERATIVOS (Não aparecem no PDF) -->
-            <div id="interactiveControls" class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex flex-col gap-4">
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex flex-col gap-4">
                 <div class="flex gap-4 items-center flex-wrap">
                     <div class="flex-grow relative min-w-[250px]">
                         <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                             <i data-lucide="search" class="w-5 h-5 text-gray-400"></i>
                         </div>
-                        <input type="text" id="searchInput" class="block w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg leading-5 bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 sm:text-sm transition-all" placeholder="Buscar fornecedor, descrição, categoria...">
+                        <input type="text" id="searchInput" class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 sm:text-sm" placeholder="Buscar lançamento...">
                     </div>
-                    <div class="w-48 relative">
-                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <i data-lucide="dollar-sign" class="w-5 h-5 text-gray-400"></i>
-                        </div>
-                        <input type="text" id="valueInput" class="block w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg leading-5 bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 sm:text-sm transition-all" placeholder="Valor exato...">
+                    
+                    <div class="flex gap-2">
+                        <button id="btnFilterErrors" class="bg-red-50 text-red-600 border border-red-200 px-3 py-2 rounded-lg text-sm font-bold hover:bg-red-100 flex items-center gap-2 transition-colors">
+                            <i data-lucide="alert-circle" class="w-4 h-4"></i> Ver Inconsistências
+                        </button>
                     </div>
-                </div>
-                <!-- Filtros Rápidos -->
-                <div class="flex items-center gap-3 flex-wrap border-t border-gray-100 pt-3">
-                    <span class="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
-                        <i data-lucide="filter" class="w-3 h-3"></i> Filtros:
-                    </span>
-                    <div id="quickFilters" class="flex flex-wrap gap-2"></div>
-                    <button id="clearFiltersBtn" class="hidden text-xs bg-red-50 text-red-600 hover:bg-red-100 px-3 py-1.5 rounded-full font-bold transition-colors">Limpar Filtros</button>
                 </div>
             </div>
 
-            <!-- INÍCIO DA ÁREA DE CAPTURA DO PDF -->
-            <div id="pdfCaptureArea" class="flex flex-col gap-6 bg-[#f3f4f6] p-2">
-                
-                <!-- KPIs -->
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200 border-l-4 border-l-blue-500">
-                        <p class="text-xs text-gray-500 font-bold uppercase tracking-wider mb-1">Total Filtrado</p>
-                        <h2 id="kpiTotal" class="text-3xl font-black text-gray-800">R$ 0,00</h2>
-                    </div>
-                    <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200 border-l-4 border-l-green-500">
-                        <p class="text-xs text-gray-500 font-bold uppercase tracking-wider mb-1">Lançamentos Visíveis</p>
-                        <h2 id="kpiCount" class="text-3xl font-black text-gray-800">0</h2>
-                    </div>
-                    <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200 border-l-4 border-l-purple-500">
-                        <p class="text-xs text-gray-500 font-bold uppercase tracking-wider mb-1">Maior Categoria</p>
-                        <h2 id="kpiTopCat" class="text-lg font-bold text-gray-800 truncate">-</h2>
-                    </div>
-                    <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200 border-l-4 border-l-orange-500">
-                        <p class="text-xs text-gray-500 font-bold uppercase tracking-wider mb-1">Maior Fornecedor</p>
-                        <h2 id="kpiTopFor" class="text-lg font-bold text-gray-800 truncate">-</h2>
-                    </div>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200 border-l-4 border-l-blue-500">
+                    <p class="text-xs text-gray-500 font-bold uppercase tracking-wider mb-1">Total Validado</p>
+                    <h2 id="kpiTotal" class="text-3xl font-black text-gray-800">R$ 0,00</h2>
                 </div>
-
-                <!-- GRÁFICOS -->
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <!-- Gráfico Categoria -->
-                    <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
-                        <h3 class="text-sm font-bold text-gray-700 mb-4 text-center">Despesas por Categoria</h3>
-                        <div class="relative h-64">
-                            <canvas id="chartCategory"></canvas>
-                        </div>
-                    </div>
-                    <!-- Gráfico Fornecedor -->
-                    <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
-                        <h3 class="text-sm font-bold text-gray-700 mb-4 text-center">Top 5 Fornecedores</h3>
-                        <div class="relative h-64">
-                            <canvas id="chartSupplier"></canvas>
-                        </div>
-                    </div>
+                <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200 border-l-4 border-l-gray-500">
+                    <p class="text-xs text-gray-500 font-bold uppercase tracking-wider mb-1">Analisados</p>
+                    <h2 id="kpiCount" class="text-3xl font-black text-gray-800">0</h2>
                 </div>
-
-                <!-- TABELA -->
-                <div class="bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col overflow-hidden">
-                    <div class="px-5 py-4 border-b border-gray-100 bg-gray-50">
-                        <h3 class="text-sm font-bold text-gray-700">Relação de Despesas</h3>
-                    </div>
-                    <div class="table-container" id="printableTableContainer">
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50">
-                                <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Data</th>
-                                    <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Fornecedor</th>
-                                    <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Categoria</th>
-                                    <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Conta</th>
-                                    <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Descrição</th>
-                                    <th class="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Valor</th>
-                                </tr>
-                            </thead>
-                            <tbody id="tableBody" class="bg-white divide-y divide-gray-100 text-sm">
-                                <!-- JS popula aqui -->
-                            </tbody>
-                        </table>
-                    </div>
+                <div class="bg-white p-5 rounded-xl shadow-sm border border-red-200 bg-red-50 border-l-4 border-l-red-500">
+                    <p class="text-xs text-red-500 font-bold uppercase tracking-wider mb-1">Dados Faltantes</p>
+                    <h2 id="kpiErrors" class="text-3xl font-black text-red-700">0</h2>
                 </div>
-
+                <div class="bg-white p-5 rounded-xl shadow-sm border border-yellow-200 bg-yellow-50 border-l-4 border-l-yellow-500">
+                    <p class="text-xs text-yellow-600 font-bold uppercase tracking-wider mb-1">Divergência de Datas</p>
+                    <h2 id="kpiDates" class="text-3xl font-black text-yellow-700">0</h2>
+                </div>
             </div>
-            <!-- FIM DA ÁREA DE CAPTURA DO PDF -->
+
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col overflow-hidden">
+                <div class="px-5 py-3 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
+                    <h3 class="text-sm font-bold text-gray-700">Lançamentos</h3>
+                    <span id="copyFeedback" class="text-xs font-bold text-green-600 hidden">Copiado para o Robô!</span>
+                </div>
+                <div class="table-container">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Status</th>
+                                <th class="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Data</th>
+                                <th class="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Fornecedor</th>
+                                <th class="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Categoria / Conta</th>
+                                <th class="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Forma Pagto</th>
+                                <th class="px-4 py-3 text-right text-xs font-bold text-gray-500 uppercase">Valor</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tableBody" class="bg-white divide-y divide-gray-100 text-sm">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
         </div>
     </main>
 
     <script>
         lucide.createIcons();
 
-        // Variáveis Globais
         let currentData = [];
-        let chartCatInstance = null;
-        let chartSupInstance = null;
+        let filteredData = [];
+        let showingErrorsOnly = false;
 
-        // Elementos DOM
         const fileUpload = document.getElementById('fileUpload');
         const emptyState = document.getElementById('emptyState');
         const dashboardContent = document.getElementById('dashboardContent');
         const searchInput = document.getElementById('searchInput');
-        const valueInput = document.getElementById('valueInput');
         const tableBody = document.getElementById('tableBody');
-        const quickFiltersContainer = document.getElementById('quickFilters');
-        const clearFiltersBtn = document.getElementById('clearFiltersBtn');
-        const btnPdf = document.getElementById('btnPdf');
-        const pdfCaptureArea = document.getElementById('pdfCaptureArea');
-        const printableTableContainer = document.getElementById('printableTableContainer');
+        const btnFilterErrors = document.getElementById('btnFilterErrors');
+        const btnCopyRobot = document.getElementById('btnCopyRobot');
+        const copyFeedback = document.getElementById('copyFeedback');
 
-        // Extração Inteligente de Colunas
         const getVal = (keys, row) => {
             for(let k of keys) {
                 const foundKey = Object.keys(row).find(rk => rk.toLowerCase().includes(k.toLowerCase()));
-                if (foundKey && row[foundKey] !== undefined && row[foundKey] !== null && row[foundKey] !== '') return row[foundKey];
+                if (foundKey && row[foundKey] !== undefined && row[foundKey] !== null && row[foundKey] !== '') return String(row[foundKey]).trim();
             }
-            return null;
+            return '';
         };
 
-        // Regras de Parse baseadas na estrutura[cite: 2]
         function parseAmount(rawValue) {
             if (!rawValue) return 0;
             if (typeof rawValue === 'number') return rawValue;
@@ -204,167 +146,109 @@
             return parseFloat(strVal) || 0;
         }
 
-        const getCategory = (row) => getVal(['Categoria', 'Centro'], row) || 'Diversos';
-        const getSupplier = (row) => getVal(['Fornecedor', 'Nome', 'Favorecido'], row) || 'Não Informado';
-        const getAccount = (row) => getVal(['Conta', 'Banco', 'Origem', 'Forma de Pagamento'], row) || '-';
-        const getAmount = (row) => Math.abs(parseAmount(getVal(['Valor', 'Quantia', 'Total', 'Amount'], row)));
         const formatCurrency = (value) => value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
-        function aggregateData(data, keyFunction) {
-            const result = {};
-            data.forEach(row => {
-                const key = keyFunction(row);
-                const val = getAmount(row);
-                if(val > 0) result[key] = (result[key] || 0) + val;
-            });
-            return Object.entries(result).sort((a, b) => b[1] - a[1]);
+        function auditarLinha(row) {
+            const dataPagto = getVal(['Pagamento', 'Data'], row);
+            const dataVenc = getVal(['Vencimento'], row) || dataPagto;
+            const fornecedor = getVal(['Fornecedor', 'Favorecido'], row);
+            const categoria = getVal(['Categoria', 'Financeira'], row);
+            const conta = getVal(['Conta', 'Origem'], row);
+            const formaPagto = getVal(['Forma', 'Método', 'Pagamento'], row);
+            const valor = parseAmount(getVal(['Valor', 'Quantia'], row));
+            const descricao = getVal(['Descrição', 'Histórico'], row) || 'Diversos';
+
+            const faltaDadoSaipos = !fornecedor || !categoria || !conta || !formaPagto || valor === 0;
+            const divergenciaData = dataPagto !== dataVenc;
+
+            return { 
+                faltaDadoSaipos, divergenciaData, 
+                fornecedor, categoria, conta, formaPagto, valor, dataPagto, dataVenc, descricao 
+            };
         }
 
-        function generateColors(count) {
-            const base = ['#3b82f6', '#8b5cf6', '#ec4899', '#f97316', '#14b8a6', '#facc15', '#10b981', '#6366f1'];
-            return Array.from({length: count}, (_, i) => base[i % base.length]);
-        }
-
-        // ==========================================
-        // RENDERIZAÇÃO DO DASHBOARD
-        // ==========================================
-        function renderDashboard(data, buildFilters = false) {
-            let totalDespesas = 0;
+        function renderDashboard(data) {
+            filteredData = data;
+            let totalVal = 0, countErrors = 0, countDates = 0;
             tableBody.innerHTML = '';
 
-            if (data.length === 0) {
-                tableBody.innerHTML = `<tr><td colspan="6" class="px-6 py-8 text-center text-gray-500">Nenhum lançamento encontrado.</td></tr>`;
-            }
-
-            // 1. Renderiza Tabela
             data.forEach(row => {
-                const pgto = getVal(['Pagamento', 'Data', 'Vencimento', 'Emissão'], row) || '-';
-                const forn = getSupplier(row);
-                const cat = getCategory(row);
-                const acc = getAccount(row);
-                const absValor = getAmount(row);
-                let desc = getVal(['Descrição', 'Histórico', 'Detalhe'], row) || '-';
+                const audit = auditarLinha(row);
+                totalVal += Math.abs(audit.valor);
                 
-                if (desc.length > 50) desc = desc.substring(0, 50) + '...';
-                totalDespesas += absValor;
+                if (audit.faltaDadoSaipos) countErrors++;
+                if (audit.divergenciaData && !audit.faltaDadoSaipos) countDates++;
 
                 const tr = document.createElement('tr');
+                
+                let statusHtml = `<span class="inline-flex items-center gap-1 bg-green-50 text-green-700 px-2 py-1 rounded text-xs font-bold"><i data-lucide="check-circle" class="w-3 h-3"></i> OK</span>`;
+                if (audit.faltaDadoSaipos) {
+                    tr.className = "bg-red-50 border-l-4 border-l-red-500";
+                    statusHtml = `<span class="inline-flex items-center gap-1 bg-red-100 text-red-700 px-2 py-1 rounded text-xs font-bold"><i data-lucide="alert-triangle" class="w-3 h-3"></i> Faltam Dados</span>`;
+                } else if (audit.divergenciaData) {
+                    tr.className = "bg-yellow-50 border-l-4 border-l-yellow-400";
+                    statusHtml = `<span class="inline-flex items-center gap-1 bg-yellow-100 text-yellow-700 px-2 py-1 rounded text-xs font-bold"><i data-lucide="calendar-clock" class="w-3 h-3"></i> Data Div.</span>`;
+                }
+
                 tr.innerHTML = `
-                    <td class="px-6 py-3 whitespace-nowrap text-gray-500">${pgto}</td>
-                    <td class="px-6 py-3 font-medium text-gray-900">${forn}</td>
-                    <td class="px-6 py-3"><span class="bg-gray-100 text-gray-700 px-2 py-1 rounded text-xs font-medium">${cat}</span></td>
-                    <td class="px-6 py-3 whitespace-nowrap text-gray-500">${acc}</td>
-                    <td class="px-6 py-3 text-gray-500 text-xs">${desc}</td>
-                    <td class="px-6 py-3 whitespace-nowrap text-right font-bold text-gray-800">${formatCurrency(absValor)}</td>
+                    <td class="px-4 py-3 whitespace-nowrap">${statusHtml}</td>
+                    <td class="px-4 py-3 whitespace-nowrap text-gray-600 text-xs">
+                        <div class="font-bold">${audit.dataPagto || '-'}</div>
+                        ${audit.divergenciaData ? `<div class="text-[10px] text-yellow-600">Venc: ${audit.dataVenc}</div>` : ''}
+                    </td>
+                    <td class="px-4 py-3 font-medium ${!audit.fornecedor ? 'text-red-500' : 'text-gray-900'}">${audit.fornecedor || 'Ausente'}</td>
+                    <td class="px-4 py-3 text-xs">
+                        <div class="font-bold ${!audit.categoria ? 'text-red-500' : 'text-indigo-700'}">${audit.categoria || 'Ausente'}</div>
+                        <div class="text-gray-500 flex items-center gap-1 mt-0.5 ${!audit.conta ? 'text-red-500' : ''}"><i data-lucide="landmark" class="w-3 h-3"></i> ${audit.conta || 'Ausente'}</div>
+                    </td>
+                    <td class="px-4 py-3 text-xs ${!audit.formaPagto ? 'text-red-500 font-bold' : 'text-gray-500'}">${audit.formaPagto || 'Ausente'}</td>
+                    <td class="px-4 py-3 whitespace-nowrap text-right font-bold text-gray-800">${formatCurrency(audit.valor)}</td>
                 `;
                 tableBody.appendChild(tr);
             });
 
-            // 2. Atualiza KPIs
-            const catAgg = aggregateData(data, getCategory);
-            const forAgg = aggregateData(data, getSupplier);
-            
-            document.getElementById('kpiTotal').textContent = formatCurrency(totalDespesas);
+            document.getElementById('kpiTotal').textContent = formatCurrency(totalVal);
             document.getElementById('kpiCount').textContent = data.length;
-            document.getElementById('kpiTopCat').textContent = catAgg.length > 0 ? catAgg[0][0] : '-';
-            document.getElementById('kpiTopFor').textContent = forAgg.length > 0 ? forAgg[0][0] : '-';
-
-            // 3. Atualiza Gráficos (Chart.js)
-            const topCats = catAgg.slice(0, 6);
-            const topFors = forAgg.slice(0, 5);
-
-            if(chartCatInstance) chartCatInstance.destroy();
-            if(chartSupInstance) chartSupInstance.destroy();
-
-            const ctxCat = document.getElementById('chartCategory').getContext('2d');
-            chartCatInstance = new Chart(ctxCat, {
-                type: 'doughnut',
-                data: {
-                    labels: topCats.map(x => x[0]),
-                    datasets: [{ data: topCats.map(x => x[1]), backgroundColor: generateColors(topCats.length), borderWidth: 2 }]
-                },
-                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { boxWidth: 10, font: { size: 10 } } } } }
-            });
-
-            const ctxSup = document.getElementById('chartSupplier').getContext('2d');
-            chartSupInstance = new Chart(ctxSup, {
-                type: 'bar',
-                data: {
-                    labels: topFors.map(x => x[0].length > 15 ? x[0].substring(0,15)+'...' : x[0]),
-                    datasets: [{ data: topFors.map(x => x[1]), backgroundColor: '#3b82f6', borderRadius: 4 }]
-                },
-                options: { 
-                    responsive: true, maintainAspectRatio: false, 
-                    plugins: { legend: { display: false } },
-                    scales: { y: { beginAtZero: true, grid: { borderDash: [4, 4] } }, x: { grid: { display: false } } }
-                }
-            });
-
-            // 4. Constrói Filtros Rápidos Iniciais
-            if (buildFilters) {
-                quickFiltersContainer.innerHTML = '';
-                topCats.forEach(cat => {
-                    const btn = document.createElement('button');
-                    btn.className = "bg-white border border-gray-200 hover:border-blue-500 hover:text-blue-600 text-gray-600 px-3 py-1 rounded-full text-xs font-bold transition-colors shadow-sm";
-                    btn.textContent = cat[0];
-                    btn.onclick = () => {
-                        searchInput.value = cat[0];
-                        executarFiltros();
-                    };
-                    quickFiltersContainer.appendChild(btn);
-                });
-            }
+            document.getElementById('kpiErrors').textContent = countErrors;
+            document.getElementById('kpiDates').textContent = countDates;
+            lucide.createIcons();
         }
 
-        // ==========================================
-        // LÓGICA DE FILTROS INTERATIVOS
-        // ==========================================
         function executarFiltros() {
             const generalQuery = searchInput.value.toLowerCase().trim();
-            const valueQuery = valueInput.value.toLowerCase().trim();
-
-            if (!generalQuery && !valueQuery) {
-                clearFiltersBtn.classList.add('hidden');
-                renderDashboard(currentData, false);
-                return;
-            }
-            
-            clearFiltersBtn.classList.remove('hidden');
-
             const filtered = currentData.filter(row => {
-                let matchGeneral = true;
-                let matchValue = true;
-
-                if (generalQuery) {
-                    const searchable = Object.values(row).filter(v => v !== null).join(' ').toLowerCase();
-                    matchGeneral = searchable.includes(generalQuery);
-                }
-                if (valueQuery) {
-                    const rawValue = getVal(['Valor', 'Quantia', 'Total', 'Amount'], row);
-                    if (rawValue) {
-                        const absValueStr = String(Math.abs(parseFloat(rawValue) || 0)).replace('.', ',');
-                        matchValue = String(rawValue).toLowerCase().includes(valueQuery) || absValueStr.includes(valueQuery.replace('.', ','));
-                    } else {
-                        matchValue = false;
-                    }
-                }
-                return matchGeneral && matchValue;
+                const audit = auditarLinha(row);
+                const matchPesquisa = !generalQuery || Object.values(row).join(' ').toLowerCase().includes(generalQuery);
+                const matchErro = !showingErrorsOnly || audit.faltaDadoSaipos || audit.divergenciaData;
+                return matchPesquisa && matchErro;
             });
-            renderDashboard(filtered, false);
+            renderDashboard(filtered);
         }
 
         searchInput.addEventListener('input', executarFiltros);
-        valueInput.addEventListener('input', executarFiltros);
         
-        clearFiltersBtn.addEventListener('click', () => {
-            searchInput.value = '';
-            valueInput.value = '';
+        btnFilterErrors.addEventListener('click', () => {
+            showingErrorsOnly = !showingErrorsOnly;
+            btnFilterErrors.classList.toggle('bg-red-600', showingErrorsOnly);
+            btnFilterErrors.classList.toggle('text-white', showingErrorsOnly);
             executarFiltros();
         });
 
-        // ==========================================
-        // LEITURA DO ARQUIVO EXCEL/CSV
-        // ==========================================
+        btnCopyRobot.addEventListener('click', () => {
+            if (filteredData.length === 0) return;
+            
+            let outputTSV = "";
+            filteredData.forEach(row => {
+                const audit = auditarLinha(row);
+                outputTSV += `${audit.dataPagto}\t${audit.fornecedor}\t${audit.conta}\t${audit.descricao}\t${audit.categoria}\t${audit.formaPagto}\t${audit.valor}\n`;
+            });
+
+            navigator.clipboard.writeText(outputTSV).then(() => {
+                copyFeedback.classList.remove('hidden');
+                setTimeout(() => copyFeedback.classList.add('hidden'), 3000);
+            });
+        });
+
         fileUpload.addEventListener('change', (e) => {
             const file = e.target.files[0];
             if (!file) return;
@@ -372,53 +256,18 @@
             const reader = new FileReader();
             reader.onload = function(e) {
                 const workbook = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
-                const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-                const rawData = XLSX.utils.sheet_to_json(worksheet, { raw: false, dateNF: 'dd/mm/yyyy' });
+                const rawData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { raw: false, dateNF: 'dd/mm/yyyy' });
                 
                 if (rawData && rawData.length > 0) {
                     currentData = rawData;
                     emptyState.style.display = 'none';
                     dashboardContent.classList.remove('hidden');
                     dashboardContent.classList.add('flex');
-                    btnPdf.classList.remove('hidden');
-                    
-                    renderDashboard(currentData, true);
+                    btnCopyRobot.classList.remove('hidden');
+                    renderDashboard(currentData);
                 }
             };
             reader.readAsArrayBuffer(file);
-        });
-
-        // ==========================================
-        // EXPORTAÇÃO ESTÁTICA PARA PDF
-        // ==========================================
-        btnPdf.addEventListener('click', () => {
-            const originalHTML = btnPdf.innerHTML;
-            btnPdf.innerHTML = '<i data-lucide="loader" class="w-4 h-4 animate-spin"></i> Gerando...';
-            btnPdf.disabled = true;
-
-            // 1. Expande a tabela temporariamente para não cortar os dados no PDF
-            printableTableContainer.style.maxHeight = 'none';
-            printableTableContainer.style.overflow = 'visible';
-
-            // 2. Configurações de Paisagem e Qualidade
-            const opt = {
-                margin:       10,
-                filename:     'Dashboard_Financeiro.pdf',
-                image:        { type: 'jpeg', quality: 0.98 },
-                html2canvas:  { scale: 2, useCORS: true },
-                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'landscape' }
-            };
-
-            // 3. Captura apenas a área visual do Dashboard (Ignora os inputs de pesquisa)
-            html2pdf().set(opt).from(pdfCaptureArea).save().then(() => {
-                // Restaura o layout da tabela ao normal
-                printableTableContainer.style.maxHeight = '400px';
-                printableTableContainer.style.overflow = 'auto';
-                
-                btnPdf.innerHTML = originalHTML;
-                btnPdf.disabled = false;
-                lucide.createIcons();
-            });
         });
     </script>
 </body>
